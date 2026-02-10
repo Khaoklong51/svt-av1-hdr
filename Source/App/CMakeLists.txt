@@ -43,15 +43,22 @@ if(LIBDOVI_FOUND)
   include_directories(${LIBDOVI_INCLUDE_DIR})
 
 
-  if(EXT_LIB_STATIC)
+  if(EXT_LIB_STATIC OR MSVC)
     set(LIBDOVI_REQUIRED_LIBRARIES ${PC_LIBDOVI_STATIC_LIBRARIES})
   else()
     set(LIBDOVI_REQUIRED_LIBRARIES ${PC_LIBDOVI_LIBRARIES})
   endif()
 
   set(LIBDOVI_LIBRARY "")
-  if(NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU" AND NOT MINGW)
-    set(LIBDOVI_LIBRARY ${LIBDOVI_REQUIRED_LIBRARIES})
+  if(NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT MINGW AND WIN32)
+    # link hack only for native windows and clang
+    # because cmake pass .lib file for windows
+    # but cargo-c produce .dll.lib for shared 
+    # and .lib for static library this force passing
+    # .dll extension by creating linker flags
+    foreach(BASE ${LIBDOVI_REQUIRED_LIBRARIES})
+      list(APPEND LIBDOVI_LIBRARY "-l${BASE}${SUFFIX}")
+    endforeach()
   else()
     foreach(BASE ${LIBDOVI_REQUIRED_LIBRARIES})
       list(APPEND LIBDOVI_LIBRARY "${BASE}${SUFFIX}")
@@ -78,20 +85,33 @@ if(LIBHDR10PLUS_RS_FOUND)
   include_directories(${LIBHDR10PLUS_RS_INCLUDE_DIR})
 
 
-  if(EXT_LIB_STATIC)
+  if(EXT_LIB_STATIC OR MSVC)
     set(LIBHDR10PLUS_RS_REQUIRED_LIBRARIES ${PC_LIBHDR10PLUS_RS_STATIC_LIBRARIES})
   else()
     set(LIBHDR10PLUS_RS_REQUIRED_LIBRARIES ${PC_LIBHDR10PLUS_RS_LIBRARIES})
   endif()
 
   set(LIBHDR10PLUS_RS_LIBRARY "")
-  if(NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU" AND NOT MINGW)
-    set(LIBHDR10PLUS_RS_LIBRARY ${LIBHDR10PLUS_RS_REQUIRED_LIBRARIES})
+  if(WIN32 AND NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT MINGW)
+    # link hack only for native windows and clang
+    # because cmake pass .lib file for windows 
+    # on both static and shared library
+    # but cargo-c produce .dll.lib for shared 
+    # and .lib for static library this force passing
+    # .dll extension by creating linker flags
+    if(NOT EXT_LIB_STATIC)
+      message(WARNING "Shared version of hdr10plus-rs library is known to cause error when link")
+    endif()
+    foreach(BASE ${LIBHDR10PLUS_RS_REQUIRED_LIBRARIES})
+      list(APPEND LIBHDR10PLUS_RS_LIBRARY "-l${BASE}${SUFFIX}")
+    endforeach()
   else()
     foreach(BASE ${LIBHDR10PLUS_RS_REQUIRED_LIBRARIES})
       list(APPEND LIBHDR10PLUS_RS_LIBRARY "${BASE}${SUFFIX}")
     endforeach()
   endif()
+
+  message(${LIBHDR10PLUS_RS_LIBRARY})
 
   add_definitions(-DLIBHDR10PLUS_RS_FOUND=1)
   execute_process(COMMAND ${CMAKE_COMMAND} -E echo_append "-- Building with hdr10plus support - Yes\n")
